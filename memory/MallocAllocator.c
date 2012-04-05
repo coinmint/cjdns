@@ -84,6 +84,25 @@ static void failure(const char* message)
     abort();
 }
 
+// for busting memory leaks
+#if defined(Log_DEBUG) && !defined(__APPLE__)
+    #include <execinfo.h>
+    #define LOG_ALLOC(alloc, action) \
+        {                                                                        \
+            void *buffer[100];                                                   \
+            int nptrs = backtrace(buffer, 100);                                  \
+            char** strings = backtrace_symbols(buffer, nptrs);                   \
+            printf(action " %p\n", alloc);                                       \
+            for (int i = 0; i < nptrs; i++) {                                    \
+                printf("%s\n", strings[i]);                                      \
+            }                                                                    \
+            printf("\n");                                                        \
+            free(strings);                                                       \
+        }
+#else
+    #define LOG_ALLOC(unused, unused2)
+#endif
+
 static inline void* newAllocation(struct Context* context, size_t size)
 {
     size_t realSize = sizeof(struct Allocation) + size;
@@ -98,6 +117,9 @@ static inline void* newAllocation(struct Context* context, size_t size)
     alloc->next = context->allocations;
     alloc->size = realSize;
     context->allocations = alloc;
+
+    LOG_ALLOC(alloc, "allocated");
+
     return (void*) (alloc + 1);
 }
 
@@ -138,6 +160,7 @@ static void freeAllocator(const struct Allocator* allocator)
     while (loc != NULL) {
         *(context->spaceAvailable) += loc->size;
         struct Allocation* nextLoc = loc->next;
+        LOG_ALLOC(nextLoc, "freed");
         free(loc);
         loc = nextLoc;
     }
