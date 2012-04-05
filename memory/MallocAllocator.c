@@ -92,7 +92,7 @@ static void failure(const char* message)
             void *buffer[100];                                                   \
             int nptrs = backtrace(buffer, 100);                                  \
             char** strings = backtrace_symbols(buffer, nptrs);                   \
-            printf(action " %p\n", alloc);                                       \
+            printf(action " %p\n", (void*) alloc);                               \
             for (int i = 0; i < nptrs; i++) {                                    \
                 printf("%s\n", strings[i]);                                      \
             }                                                                    \
