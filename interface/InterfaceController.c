@@ -165,7 +165,9 @@ static uint8_t receivedAfterCryptoAuth(struct Message* msg, struct Interface* cr
             Log_warn(ic->logger, "Node is contacting us, unable to add as switch is full.");
             return Error_NONE;
         }
+        Log_debug(ic->logger, "Added incoming connection request to switch.");
         ep->addToSwitch = false;
+        assert(ep->internal.sendMessage);
     }
     if (!ep->authenticated) {
         if (CryptoAuth_getState(cryptoAuthIf) == CryptoAuth_ESTABLISHED) {
@@ -276,6 +278,7 @@ static struct Endpoint* insertEndpoint(uint8_t key[InterfaceController_KEY_SIZE]
     if (!ep) {
         return NULL;
     }
+    memset(ep, 0, sizeof(struct Endpoint));
 
     // This is the same no matter what endpoint.
     externalInterface->receiverContext = ic;
