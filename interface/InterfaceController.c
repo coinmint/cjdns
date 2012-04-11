@@ -60,6 +60,12 @@ struct Endpoint
     bool removeIfExpires : 1;
 
     /**
+     * If true, this endpoint has not yet been registered with the switch.
+     * For nodes which require the switch
+     */
+    bool addToSwitch : 1;
+
+    /**
      * The time of the last incoming message, used to clear out endpoints
      * if they are not responsive. Only updated if removeIfExpires == true.
      */
@@ -152,6 +158,14 @@ static uint8_t receivedAfterCryptoAuth(struct Message* msg, struct Interface* cr
 
     if (ep->removeIfExpires) {
         ep->timeOfLastMessage = Time_currentTimeSeconds(ic->eventBase);
+    }
+    if (ep->addToSwitch) {
+        uint64_t netAddr_be;
+        if (SwitchCore_addInterface(&ep->switchIf, 0, &netAddr_be, ic->switchCore)) {
+            Log_warn(ic->logger, "Node is contacting us, unable to add as switch is full.");
+            return Error_NONE;
+        }
+        ep->addToSwitch = false;
     }
     if (!ep->authenticated) {
         if (CryptoAuth_getState(cryptoAuthIf) == CryptoAuth_ESTABLISHED) {
@@ -299,28 +313,30 @@ static struct Endpoint* insertEndpoint(uint8_t key[InterfaceController_KEY_SIZE]
         .allocator = epAllocator
     }), sizeof(struct Interface));
 
-    struct Address addr;
-    memset(&addr, 0, sizeof(struct Address));
-    if (SwitchCore_addInterface(&ep->switchIf, 0, &addr.networkAddress_be, ic->switchCore)) {
-        return NULL;
-    }
-
     authedIf->receiveMessage = receivedAfterCryptoAuth;
     authedIf->receiverContext = ep;
 
-    if (herPublicKey) {
-        memcpy(addr.key, herPublicKey, 32);
-        RouterModule_addNode(&addr, ic->routerModule);
-        #ifdef Log_INFO
-            uint8_t printAddr[60];
-            Address_print(printAddr, &addr);
-            Log_info1(ic->logger, "Adding direct peer %s.", printAddr);
-        #endif
-        #ifdef Log_KEYS
-            uint8_t keyHex[2 * InterfaceController_KEY_SIZE + 1];
-            Hex_encode(keyHex, sizeof(keyHex), key, InterfaceController_KEY_SIZE);
-            Log_keys1(ic->logger, "With connection identifier [%s]", keyHex);
-        #endif
+    ep->addToSwitch = requireAuth;
+    if (!requireAuth) {
+        struct Address addr;
+        memset(&addr, 0, sizeof(struct Address));
+        if (SwitchCore_addInterface(&ep->switchIf, 0, &addr.networkAddress_be, ic->switchCore)) {
+            return NULL;
+        }
+        if (herPublicKey) {
+            memcpy(addr.key, herPublicKey, 32);
+            RouterModule_addNode(&addr, ic->routerModule);
+            #ifdef Log_INFO
+                uint8_t printAddr[60];
+                Address_print(printAddr, &addr);
+                Log_info1(ic->logger, "Adding direct peer %s.", printAddr);
+            #endif
+            #ifdef Log_KEYS
+                uint8_t keyHex[2 * InterfaceController_KEY_SIZE + 1];
+                Hex_encode(keyHex, sizeof(keyHex), key, InterfaceController_KEY_SIZE);
+                Log_keys1(ic->logger, "With connection identifier [%s]", keyHex);
+            #endif
+        }
     }
 
     return ep;
