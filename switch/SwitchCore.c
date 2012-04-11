@@ -269,6 +269,7 @@ int SwitchCore_addInterface(struct Interface* iface,
     if (ifIndex == SwitchCore_MAX_INTERFACES) {
         return -1;
     }
+    Log_debug1(core->logger, "Interface added at index [%u]", ifIndex);
 
     struct SwitchInterface* newIf = &core->interfaces[ifIndex];
 
